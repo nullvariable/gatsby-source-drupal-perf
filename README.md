@@ -1,4 +1,4 @@
-# gatsby-source-drupal
+# gatsby-source-drupal-perf
 
 Source plugin for pulling data (including images) into Gatsby from Drupal sites.
 
@@ -15,7 +15,7 @@ been used since jsonapi version `8.x-1.0-alpha4`.
 
 ## Install
 
-`npm install gatsby-source-drupal`
+`npm install gatsby-source-drupal-perf`
 
 ## How to use
 
@@ -24,7 +24,7 @@ been used since jsonapi version `8.x-1.0-alpha4`.
 module.exports = {
   plugins: [
     {
-      resolve: `gatsby-source-drupal`,
+      resolve: `gatsby-source-drupal-perf`,
       options: {
         baseUrl: `https://live-contentacms.pantheonsite.io/`,
         apiBase: `api`, // optional, defaults to `jsonapi`
@@ -58,7 +58,7 @@ To retrieve only recipes with a specific tag you could do something like the fol
 module.exports = {
   plugins: [
     {
-      resolve: `gatsby-source-drupal`,
+      resolve: `gatsby-source-drupal-perf`,
       options: {
         baseUrl: `https://live-contentacms.pantheonsite.io/`,
         apiBase: `api`,
@@ -84,7 +84,7 @@ First, you need a way to pass environment variables to the build process, so sec
 module.exports = {
   plugins: [
     {
-      resolve: `gatsby-source-drupal`,
+      resolve: `gatsby-source-drupal-perf`,
       options: {
         baseUrl: `https://live-contentacms.pantheonsite.io/`,
         apiBase: `api`, // optional, defaults to `jsonapi`
@@ -113,7 +113,7 @@ Drupal permission to `sync gatsby fastbuild log entities`.
 module.exports = {
   plugins: [
     {
-      resolve: `gatsby-source-drupal`,
+      resolve: `gatsby-source-drupal-perf`,
       options: {
         baseUrl: `https://live-contentacms.pantheonsite.io/`,
         apiBase: `api`, // optional, defaults to `jsonapi`
@@ -137,7 +137,7 @@ You can add optional request headers to the request using `headers` param.
 module.exports = {
   plugins: [
     {
-      resolve: `gatsby-source-drupal`,
+      resolve: `gatsby-source-drupal-perf`,
       options: {
         baseUrl: `https://live-contentacms.pantheonsite.io/`,
         apiBase: `api`, // optional, defaults to `jsonapi`
@@ -159,7 +159,7 @@ You can append optional GET request params to the request url using `params` opt
 module.exports = {
   plugins: [
     {
-      resolve: `gatsby-source-drupal`,
+      resolve: `gatsby-source-drupal-perf`,
       options: {
         baseUrl: `https://live-contentacms.pantheonsite.io/`,
         apiBase: `api`, // optional, defaults to `jsonapi`
@@ -183,7 +183,7 @@ for processing/serving images.
 module.exports = {
   plugins: [
     {
-      resolve: `gatsby-source-drupal`,
+      resolve: `gatsby-source-drupal-perf`,
       options: {
         baseUrl: `https://live-contentacms.pantheonsite.io/`,
         apiBase: `api`, // optional, defaults to `jsonapi`
@@ -194,20 +194,42 @@ module.exports = {
 }
 ```
 
-## Concurrent File Requests
+## Concurrent Requests
 
-You can use the `concurrentFileRequests` option to change how many simultaneous file requests are made to the server/service. This benefits build speed, however too many concurrent file request could cause memory exhaustion depending on the server's memory size so change with caution.
+You can use the `concurrentFileRequests` option to change how many simultaneous requests are made to the server/service. This benefits build speed, however too many concurrent requests could cause memory exhaustion depending on the server's memory size so change with caution. This influences api crawl speed in addition to files. The setting name is to mirror the original plugin.
 
 ```javascript
 // In your gatsby-config.js
 module.exports = {
   plugins: [
     {
-      resolve: `gatsby-source-drupal`,
+      resolve: `gatsby-source-drupal-perf`,
       options: {
         baseUrl: `https://live-contentacms.pantheonsite.io/`,
         apiBase: `api`, // optional, defaults to `jsonapi`
         concurrentFileRequests: 60, // optional, defaults to `20`
+      },
+    },
+  ],
+}
+```
+
+## Retries
+
+You can use the `maxRetries` option to control how many times a url is requested before a build fails.
+You can use the `retryDelay` option to control how long to wait before retrying a url.
+
+```javascript
+// In your gatsby-config.js
+module.exports = {
+  plugins: [
+    {
+      resolve: `gatsby-source-drupal-perf`,
+      options: {
+        baseUrl: `https://live-contentacms.pantheonsite.io/`,
+        apiBase: `api`, // optional, defaults to `jsonapi`
+        maxRetries: 1, // optional, defaults to 3
+        retryDelay: 30000, // optional, in milliseconds, defaults to 10000
       },
     },
   ],
@@ -223,7 +245,7 @@ You can use the `disallowedLinkTypes` option to skip link types found in JSON:AP
 module.exports = {
   plugins: [
     {
-      resolve: `gatsby-source-drupal`,
+      resolve: `gatsby-source-drupal-perf`,
       options: {
         baseUrl: `https://live-contentacms.pantheonsite.io/`,
         // skip the action--action resource type.
@@ -245,7 +267,7 @@ This enables you to fetch only the data you need at build time, instead of all d
 module.exports = {
   plugins: [
     {
-      resolve: `gatsby-source-drupal`,
+      resolve: `gatsby-source-drupal-perf`,
       options: {
         baseUrl: `https://live-contentacms.pantheonsite.io/`,
         // Skip the node--page resource type and paragraph components.
@@ -274,7 +296,7 @@ In your Drupal module configuration, set the update URL to your Gatsby Preview i
 
 _NOTES_:
 
-- This is experimental feature in active development. APIs used for this feature are not yet stable - it can break while we iterate on API design (particularly when versions of `gatsby-source-drupal` and `Gatsby Live Preview` Drupal module are incompatible).
+- This is experimental feature in active development. APIs used for this feature are not yet stable - it can break while we iterate on API design (particularly when versions of `gatsby-source-drupal-perf` and `Gatsby Live Preview` Drupal module are incompatible).
 
 ### Preview Secret
 
@@ -285,7 +307,7 @@ While you don't need to pass any additional options for preview to work, you can
 module.exports = {
   plugins: [
     {
-      resolve: `gatsby-source-drupal`,
+      resolve: `gatsby-source-drupal-perf`,
       options: {
         baseUrl: `https://live-contentacms.pantheonsite.io/`,
         secret: process.env.PREVIEW_SECRET, // optional, must match Drupal instance preview secret
