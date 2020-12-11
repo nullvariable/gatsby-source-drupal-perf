@@ -15,7 +15,7 @@ been used since jsonapi version `8.x-1.0-alpha4`.
 
 ## Install
 
-`npm install gatsby-source-drupal-perf`
+`npm install @nullvariable/gatsby-source-drupal-perf`
 
 ## How to use
 
