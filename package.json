@@ -1,18 +1,20 @@
 {
-  "name": "gatsby-source-drupal",
-  "description": "Gatsby source plugin for building websites using the Drupal CMS as a data source",
+  "name": "gatsby-source-drupal-perf",
+  "description": "Gatsby source plugin with Drupal CMS as a data source, using performance and retries.",
   "version": "3.10.0-next.0",
-  "author": "Kyle Mathews <mathews.kyle@gmail.com>",
+  "author": "Doug Cone <nullvariable@users.noreply.github.com>",
   "bugs": {
-    "url": "https://github.com/gatsbyjs/gatsby/issues"
+    "url": "https://github.com/nullvariable/gatsby-source-drupal-perf/issues"
   },
   "dependencies": {
     "@babel/runtime": "^7.12.5",
     "axios": "^0.21.0",
+    "better-queue": "^3.8.10",
     "bluebird": "^3.7.2",
     "body-parser": "^1.19.0",
     "gatsby-source-filesystem": "^2.8.0-next.0",
     "lodash": "^4.17.20",
+    "p-queue": "^6.6.2",
     "tiny-async-pool": "^1.1.0"
   },
   "devDependencies": {
@@ -21,7 +23,7 @@
     "babel-preset-gatsby-package": "^0.9.0-next.0",
     "cross-env": "^7.0.3"
   },
-  "homepage": "https://github.com/gatsbyjs/gatsby/tree/master/packages/gatsby-source-drupal#readme",
+  "homepage": "https://github.com/nullvariable/gatsby-source-drupal-perf#readme",
   "keywords": [
     "gatsby",
     "gatsby-plugin",
@@ -33,8 +35,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/gatsbyjs/gatsby.git",
-    "directory": "packages/gatsby-source-drupal"
+    "url": "https://github.com/nullvariable/gatsby-source-drupal-perf"
   },
   "scripts": {
     "build": "babel src --out-dir . --ignore \"**/__tests__\"",

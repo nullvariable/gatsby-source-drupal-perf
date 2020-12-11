@@ -1,4 +1,9 @@
 /gatsby-node.js
 /normalize.js
 /utils.js
+/queue.js
+/requestQueue.js
+/**/test.js
+/EtagRequest.js
+.vscode
 node_modules

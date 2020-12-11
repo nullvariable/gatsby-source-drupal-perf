@@ -1,24 +1,26 @@
-const axios = require(`axios`)
-const _ = require(`lodash`)
+const axios = require(`axios`);
+const _ = require(`lodash`);
 
-const { nodeFromData, downloadFile, isFileNode } = require(`./normalize`)
-const { handleReferences, handleWebhookUpdate } = require(`./utils`)
+const { nodeFromData, downloadFile, isFileNode } = require(`./normalize`);
+const { handleReferences, handleWebhookUpdate } = require(`./utils`);
 
-const asyncPool = require(`tiny-async-pool`)
-const bodyParser = require(`body-parser`)
+// const asyncPool = require(`tiny-async-pool`)
+const bodyParser = require(`body-parser`);
+
+const RequestQueue = require("./requestQueue");
 
 function gracefullyRethrow(activity, error) {
   // activity.panicOnBuild was implemented at some point in gatsby@2
   // but plugin can still be used with older version of gatsby core
   // so need to do some checking here
   if (activity.panicOnBuild) {
-    activity.panicOnBuild(error)
+    activity.panicOnBuild(error);
   }
 
-  activity.end()
+  activity.end();
 
   if (!activity.panicOnBuild) {
-    throw error
+    throw error;
   }
 }
 
@@ -49,8 +51,11 @@ exports.sourceNodes = async (
     disallowedLinkTypes,
     skipFileDownloads,
     fastBuilds,
-  } = pluginOptions
-  const { createNode, setPluginStatus, touchNode } = actions
+    maxTimeout,
+    maxRetries,
+    retryDelay,
+  } = pluginOptions;
+  const { createNode, setPluginStatus, touchNode } = actions;
 
   if (webhookBody && Object.keys(webhookBody).length) {
     const changesActivity = reporter.activityTimer(
@@ -58,28 +63,28 @@ exports.sourceNodes = async (
       {
         parentSpan,
       }
-    )
-    changesActivity.start()
+    );
+    changesActivity.start();
 
     try {
-      const { secret, action, id, data } = webhookBody
+      const { secret, action, id, data } = webhookBody;
       if (pluginOptions.secret && pluginOptions.secret !== secret) {
         reporter.warn(
           `The secret in this request did not match your plugin options secret.`
-        )
-        changesActivity.end()
-        return
+        );
+        changesActivity.end();
+        return;
       }
       if (action === `delete`) {
-        actions.deleteNode({ node: getNode(createNodeId(id)) })
-        reporter.log(`Deleted node: ${id}`)
-        changesActivity.end()
-        return
+        actions.deleteNode({ node: getNode(createNodeId(id)) });
+        reporter.log(`Deleted node: ${id}`);
+        changesActivity.end();
+        return;
       }
 
-      let nodesToUpdate = data
+      let nodesToUpdate = data;
       if (!Array.isArray(data)) {
-        nodesToUpdate = [data]
+        nodesToUpdate = [data];
       }
 
       for (const nodeToUpdate of nodesToUpdate) {
@@ -96,20 +101,20 @@ exports.sourceNodes = async (
             store,
           },
           pluginOptions
-        )
+        );
       }
     } catch (e) {
-      gracefullyRethrow(changesActivity, e)
-      return
+      gracefullyRethrow(changesActivity, e);
+      return;
     }
-    changesActivity.end()
-    return
+    changesActivity.end();
+    return;
   }
 
   fastBuilds = fastBuilds || false
   if (fastBuilds) {
     let lastFetched =
-      store.getState().status.plugins?.[`gatsby-source-drupal`]?.lastFetched ??
+      store.getState().status.plugins?.[`gatsby-source-drupal-perf`]?.lastFetched ??
       0
 
     const drupalFetchIncrementalActivity = reporter.activityTimer(
@@ -138,7 +143,7 @@ exports.sourceNodes = async (
       } else {
         // Touch nodes so they are not garbage collected by Gatsby.
         getNodes().forEach(node => {
-          if (node.internal.owner === `gatsby-source-drupal`) {
+          if (node.internal.owner === `gatsby-source-drupal-perf`) {
             touchNode({ nodeId: node.id })
           }
         })
@@ -191,7 +196,16 @@ exports.sourceNodes = async (
 
   const drupalFetchActivity = reporter.activityTimer(
     `Fetch all data from Drupal`
-  )
+  );
+  const queue = new RequestQueue({
+    concurrent: concurrentFileRequests,
+    maxTimeout,
+    maxRetries,
+    retryDelay,
+    reporter,
+    cacheGet: cache.get,
+    cacheSet: cache.set,
+  })
 
   // Default apiBase to `jsonapi`
   apiBase = apiBase || `jsonapi`
@@ -209,6 +223,10 @@ exports.sourceNodes = async (
   reporter.info(`Starting to fetch all data from Drupal`)
 
   drupalFetchActivity.start()
+  const progressTimer = setInterval(() => {
+    const stats = queue._queue.getStats()
+    reporter.info(`queue stats: total requests completed(${stats.total}) average request time(${stats.average})`)
+  }, maxTimeout)
 
   let allData
   try {
@@ -219,9 +237,15 @@ exports.sourceNodes = async (
     })
     allData = await Promise.all(
       _.map(data.data.links, async (url, type) => {
-        if (disallowedLinkTypes.includes(type)) return
-        if (!url) return
-        if (!type) return
+        if (disallowedLinkTypes.includes(type)) {
+        return
+        }
+                if (!url) {
+        return
+        }
+                if (!type) {
+        return
+        }
         const getNext = async (url, data = []) => {
           if (typeof url === `object`) {
             // url can be string or object containing href field
@@ -232,18 +256,25 @@ exports.sourceNodes = async (
             // See https://www.drupal.org/docs/8/modules/jsonapi/filtering
             if (typeof filters === `object`) {
               if (filters.hasOwnProperty(type)) {
-                url = url + `?${filters[type]}`
+                url = `${url }?${filters[type]}`
               }
             }
           }
 
           let d
           try {
-            d = await axios.get(url, {
-              auth: basicAuth,
+            // d = await axios.get(url, {
+            //   auth: basicAuth,
+            //   headers,
+            //   params,
+            // })
+
+            d = await queue.push({
+              url: url,
+              // auth: basicAuth,
               headers,
               params,
-            })
+            });
           } catch (error) {
             if (error.response && error.response.status == 405) {
               // The endpoint doesn't support the GET method, so just skip it.
@@ -285,43 +316,46 @@ exports.sourceNodes = async (
     return
   }
 
+  clearInterval(progressTimer)
+  const stats = queue._queue.getStats()
+  reporter.info(`total requests completed(${stats.total}) average request time(${stats.average})`)
   drupalFetchActivity.end()
 
-  const nodes = new Map()
+  const nodes = new Map();
 
   // first pass - create basic nodes
-  _.each(allData, contentType => {
-    if (!contentType) return
-    _.each(contentType.data, datum => {
-      if (!datum) return
-      const node = nodeFromData(datum, createNodeId)
-      nodes.set(node.id, node)
-    })
-  })
+  _.each(allData, (contentType) => {
+    if (!contentType) return;
+    _.each(contentType.data, (datum) => {
+      if (!datum) return;
+      const node = nodeFromData(datum, createNodeId);
+      nodes.set(node.id, node);
+    });
+  });
 
   // second pass - handle relationships and back references
-  nodes.forEach(node => {
+  nodes.forEach((node) => {
     handleReferences(node, {
       getNode: nodes.get.bind(nodes),
       createNodeId,
-    })
-  })
+    });
+  });
 
   if (skipFileDownloads) {
-    reporter.info(`Skipping remote file download from Drupal`)
+    reporter.info(`Skipping remote file download from Drupal`);
   } else {
-    reporter.info(`Downloading remote files from Drupal`)
+    reporter.info(`Downloading remote files from Drupal`);
 
     // Download all files (await for each pool to complete to fix concurrency issues)
-    const fileNodes = [...nodes.values()].filter(isFileNode)
+    const fileNodes = [...nodes.values()].filter(isFileNode);
 
     if (fileNodes.length) {
       const downloadingFilesActivity = reporter.activityTimer(
         `Remote file download`
-      )
-      downloadingFilesActivity.start()
+      );
+      downloadingFilesActivity.start();
       try {
-        await asyncPool(concurrentFileRequests, fileNodes, async node => {
+        await asyncPool(concurrentFileRequests, fileNodes, async (node) => {
           await downloadFile(
             {
               node,
@@ -333,80 +367,21 @@ exports.sourceNodes = async (
               reporter,
             },
             pluginOptions
-          )
-        })
+          );
+        });
       } catch (e) {
-        gracefullyRethrow(downloadingFilesActivity, e)
-        return
+        gracefullyRethrow(downloadingFilesActivity, e);
+        return;
       }
-      downloadingFilesActivity.end()
+      downloadingFilesActivity.end();
     }
   }
 
   // Create each node
   for (const node of nodes.values()) {
-    node.internal.contentDigest = createContentDigest(node)
-    createNode(node)
+    node.internal.contentDigest = createContentDigest(node);
+    createNode(node);
   }
 
-  return
-}
-
-// This is maintained for legacy reasons and will eventually be removed.
-exports.onCreateDevServer = (
-  {
-    app,
-    createNodeId,
-    getNode,
-    actions,
-    store,
-    cache,
-    createContentDigest,
-    getCache,
-    reporter,
-  },
-  pluginOptions
-) => {
-  app.use(
-    `/___updatePreview/`,
-    bodyParser.text({
-      type: `application/json`,
-    }),
-    async (req, res) => {
-      console.warn(
-        `The ___updatePreview callback is now deprecated and will be removed in the future. Please use the __refresh callback instead.`
-      )
-      if (!_.isEmpty(req.body)) {
-        const requestBody = JSON.parse(JSON.parse(req.body))
-        const { secret, action, id } = requestBody
-        if (pluginOptions.secret && pluginOptions.secret !== secret) {
-          return reporter.warn(
-            `The secret in this request did not match your plugin options secret.`
-          )
-        }
-        if (action === `delete`) {
-          actions.deleteNode({ node: getNode(createNodeId(id)) })
-          return reporter.log(`Deleted node: ${id}`)
-        }
-        const nodeToUpdate = JSON.parse(JSON.parse(req.body)).data
-        return await handleWebhookUpdate(
-          {
-            nodeToUpdate,
-            actions,
-            cache,
-            createNodeId,
-            createContentDigest,
-            getCache,
-            getNode,
-            reporter,
-            store,
-          },
-          pluginOptions
-        )
-      } else {
-        res.status(400).send(`Received body was empty!`)
-        return reporter.log(`Received body was empty!`)
-      }
-    }
-  )
-}
+  return;
+};
